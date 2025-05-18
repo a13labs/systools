@@ -63,17 +63,15 @@ func main() {
 		}
 	}
 
-	// Remove "-c g" from the command line arguments
-	args := os.Args[3:]
-	var filteredArgs []string
-	for i := 0; i < len(args); i++ {
-		if args[i] == "-c" {
-			i++
-			continue
-		}
-		filteredArgs = append(filteredArgs, args[i])
+	cmd := []string{
+		"env", "SSH_ORIGINAL_COMMAND=" + os.Getenv("SSH_ORIGINAL_COMMAND"),
+		"su", "-s", "/bin/bash", "git", "--",
 	}
-	command := strings.Join(filteredArgs, " ")
+
+	// Remove "-c g" from the command line arguments
+	if len(os.Args) > 3 {
+		cmd = append(cmd, os.Args[3:]...)
+	}
 
 	if podName == "" {
 		fmt.Fprintln(os.Stderr, "No running pod found matching prefix")
@@ -88,7 +86,7 @@ func main() {
 		SubResource("exec").
 		VersionedParams(&corev1.PodExecOptions{
 			Container: "", // default container
-			Command:   []string{"env", "SSH_ORIGINAL_COMMAND=" + os.Getenv("SSH_ORIGINAL_COMMAND"), "su", "-s", "/bin/bash", "git", "--", command},
+			Command:   cmd,
 			Stdin:     true,
 			Stdout:    true,
 			Stderr:    true,
