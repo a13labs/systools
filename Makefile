@@ -3,7 +3,7 @@
 # Variables
 BUILD_DIR = build
 DIST_DIR = dist
-PROJECTS = k8s_encryption_provider read_system_id open_volume k8s-gitea-auth k8s-gitea-shell 
+PROJECTS = k8s_encryption_provider read_system_id open_volume k8s_gitea_auth k8s_gitea_shell 
 
 .PHONY: all build
 

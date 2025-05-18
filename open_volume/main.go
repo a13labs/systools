@@ -2,13 +2,12 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 
 	"github.com/a13labs/systools/internal/system"
-	"github.com/anatol/luks.go"
 )
 
 func usage() {
@@ -34,7 +33,7 @@ func keyserverReachable(url string) bool {
 		return false
 	}
 	resp.Body.Close()
-	return resp.StatusCode < 400
+	return true
 }
 
 func main() {
@@ -76,34 +75,14 @@ func main() {
 	}
 	defer resp.Body.Close()
 
-	// Read the key from the response to a []byte
-	key, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Printf("open_volume: (%s) Failed to read key from response", mapperDevice)
-		os.Exit(1)
-	}
-
+	// Use key from stdin instead of writing temp file
 	log.Printf("open_volume:'%s' Key downloaded successfully, opening volume", mapperDevice)
-
-	dev, err := luks.Open(encrypedDevice)
+	cmd := exec.Command("/usr/sbin/cryptsetup", "luksOpen", encrypedDevice, mapperDevice, "-d", "-")
+	cmd.Stdin = resp.Body
+	out, err := cmd.CombinedOutput()
 	if err != nil {
-		log.Printf("open_volume: (%s) Failed to open LUKS device: %s", mapperDevice, err)
+		log.Printf("open_volume: (%s) Failed to open volume: %s", mapperDevice, string(out))
 		os.Exit(1)
-	}
-
-	volume, err := dev.UnsealVolume(0, key)
-	if err == luks.ErrPassphraseDoesNotMatch {
-		log.Printf("open_volume: (%s) Key does not match", mapperDevice)
-		os.Exit(1)
-	} else if err != nil {
-		log.Printf("open_volume: (%s) Failed to unseal volume: %s", mapperDevice, err)
-		os.Exit(1)
-	} else {
-		err := volume.SetupMapper(mapperDevice)
-		if err != nil {
-			log.Printf("open_volume: (%s) Failed to setup mapper: %s", mapperDevice, err)
-			os.Exit(1)
-		}
 	}
 
 	log.Printf("open_volume: (%s) Volume opened successfully", mapperDevice)

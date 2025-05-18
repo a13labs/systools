@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,6 +16,7 @@ import (
 	"syscall"
 
 	"github.com/a13labs/systools/internal/system"
+	"github.com/aws/aws-sdk-go-v2/config"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"sigs.k8s.io/aws-encryption-provider/pkg/cloud"
@@ -46,8 +48,8 @@ func main() {
 
 	// Check if keyserver is reachable
 	resp, err := http.Get(keyserver)
-	if err != nil || resp.StatusCode >= 400 {
-		log.Printf("Keyserver is not reachable: %v", keyserver)
+	if err != nil {
+		log.Printf("Keyserver is not reachable: %v, %d", err, resp.StatusCode)
 		os.Exit(1)
 	}
 
@@ -84,6 +86,24 @@ func main() {
 
 	os.Setenv("AWS_ACCESS_KEY_ID", creds.AccessKey)
 	os.Setenv("AWS_SECRET_ACCESS_KEY", creds.SecretKey)
+
+	// Check if AWS credentials are valid
+	var optFns []func(*config.LoadOptions) error
+	if creds.Region != "" {
+		optFns = append(optFns, config.WithRegion(creds.Region))
+	}
+
+	cfg, err := config.LoadDefaultConfig(context.Background(), optFns...)
+	if err != nil {
+		fmt.Printf("failed to create AWS config: %v", err)
+		os.Exit(1)
+	}
+
+	_, err = cfg.Credentials.Retrieve(context.Background())
+	if err != nil {
+		fmt.Printf("failed to retrieve AWS credentials")
+		os.Exit(1)
+	}
 
 	// Prepare socket dir
 	socketDir := filepath.Dir(socket)
