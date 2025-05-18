@@ -47,7 +47,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: dist/systools-linux-x64.zip
-          asset_name: systools-${{ steps.get_version.outputs.version }}-linux-x64.zip
+          asset_path: dist/systools-linux-amd64.zip
+          asset_name: systools-${{ steps.get_version.outputs.version }}-linux-amd64.zip
           asset_content_type: application/octet-stream
 
