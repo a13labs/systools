@@ -67,8 +67,8 @@ func main() {
 	args := os.Args[3:]
 	var filteredArgs []string
 	for i := 0; i < len(args); i++ {
-		if args[i] == "-c" && i+1 < len(args) && args[i+1] == "g" {
-			i++ // skip both "-c" and "g"
+		if args[i] == "-c" {
+			i++
 			continue
 		}
 		filteredArgs = append(filteredArgs, args[i])
