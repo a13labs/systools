@@ -65,8 +65,7 @@ func ExecCommand(clientset *kubernetes.Clientset, config *rest.Config, namespace
 
 	exec, err := remotecommand.NewSPDYExecutor(config, "POST", req.URL())
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create executor: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to create executor: %w", err)
 	}
 
 	err = exec.StreamWithContext(context.TODO(), remotecommand.StreamOptions{

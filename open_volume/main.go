@@ -19,11 +19,11 @@ func main() {
 		os.Exit(1)
 	}
 	server := os.Args[1]
-	encrypedDevice := os.Args[2]
+	encryptedDevice := os.Args[2]
 	mapperDevice := os.Args[3]
 
-	if !system.FileExists(encrypedDevice) {
-		log.Printf("open_volume: (%s) Image file not found", encrypedDevice)
+	if !system.FileExists(encryptedDevice) {
+		log.Printf("open_volume: (%s) Image file not found", encryptedDevice)
 		os.Exit(1)
 	}
 
@@ -54,7 +54,7 @@ func main() {
 	}
 
 	// Use key from stdin instead of writing temp file
-	err = system.OpenVolume(encrypedDevice, mapperDevice, key)
+	err = system.OpenVolume(encryptedDevice, mapperDevice, key)
 	if err != nil {
 		log.Printf("open_volume: (%s) Failed to open volume: %s", mapperDevice, err)
 		os.Exit(1)
