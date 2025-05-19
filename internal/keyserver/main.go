@@ -3,7 +3,6 @@ package keyserver
 import (
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 )
 
@@ -30,6 +29,5 @@ func GetKey(server, uuid string) ([]byte, error) {
 	if len(key) == 0 {
 		return nil, fmt.Errorf("key is empty")
 	}
-	// Key downloaded successfully; returning the key to the caller.
 	return key, nil
 }

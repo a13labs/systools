@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/a13labs/systools/internal/keyserver"
 	"github.com/a13labs/systools/internal/system"
@@ -32,11 +33,11 @@ func main() {
 	}
 
 	normalizedMapperDevice := mapperDevice
-	if len(mapperDevice) > len("/dev/mapper/") && mapperDevice[:len("/dev/mapper/")] == "/dev/mapper/" {
+	if strings.HasPrefix(mapperDevice, "/dev/mapper/") {
 		normalizedMapperDevice = mapperDevice[len("/dev/mapper/"):]
 	}
-	if system.DeviceMapperExists(normalizedMapperDevice) {
-		fmt.Printf("open_volume: (%s) Device already open, exiting.\n", mapperDevice)
+	if system.DeviceMapperExists(mapperDevice) {
+		fmt.Printf("open_volume: (%s) Device already open, exiting.\n", normalizedMapperDevice)
 		os.Exit(1)
 	}
 

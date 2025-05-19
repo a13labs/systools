@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"os"
 )
 
 var socketPath = "/var/run/ssh_locker.sock"
