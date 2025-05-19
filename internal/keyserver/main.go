@@ -30,6 +30,6 @@ func GetKey(server, uuid string) ([]byte, error) {
 	if len(key) == 0 {
 		return nil, fmt.Errorf("key is empty")
 	}
-	log.Printf("Keyserver: Key downloaded successfully")
+	// Key downloaded successfully; returning the key to the caller.
 	return key, nil
 }
