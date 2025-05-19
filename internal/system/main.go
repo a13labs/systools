@@ -1,11 +1,14 @@
 package system
 
 import (
+	"bytes"
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
+	"os/exec"
 
 	"github.com/zcalusic/sysinfo"
 )
@@ -34,4 +37,24 @@ func GetUniqueID() (string, error) {
 	h := md5.New()
 	io.WriteString(h, uuid)
 	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+func FileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+func DeviceMapperExists(device string) bool {
+	_, err := os.Stat("/dev/mapper/" + device)
+	return err == nil
+}
+
+func OpenVolume(src, target string, key []byte) error {
+	cmd := exec.Command("/usr/sbin/cryptsetup", "luksOpen", src, target, "-d", "-")
+	cmd.Stdin = bytes.NewReader(key)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to open volume: %s", out)
+	}
+	return nil
 }
