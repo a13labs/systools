@@ -15,7 +15,7 @@ func main() {
 	flag.Parse()
 	if len(flag.Args()) != 1 {
 		fmt.Println("Usage: client [lock|unlock]")
-		return
+		os.Exit(1)
 	}
 	if socket != "" {
 		socketPath = socket
