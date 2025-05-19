@@ -31,7 +31,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	if system.DeviceMapperExists(mapperDevice) {
+	normalizedMapperDevice := mapperDevice
+	if len(mapperDevice) > len("/dev/mapper/") && mapperDevice[:len("/dev/mapper/")] == "/dev/mapper/" {
+		normalizedMapperDevice = mapperDevice[len("/dev/mapper/"):]
+	}
+	if system.DeviceMapperExists(normalizedMapperDevice) {
 		fmt.Printf("open_volume: (%s) Device already open, exiting.\n", mapperDevice)
 		os.Exit(1)
 	}
