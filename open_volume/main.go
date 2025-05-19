@@ -36,7 +36,7 @@ func main() {
 	if strings.HasPrefix(mapperDevice, "/dev/mapper/") {
 		normalizedMapperDevice = mapperDevice[len("/dev/mapper/"):]
 	}
-	if system.DeviceMapperExists(mapperDevice) {
+	if system.DeviceMapperExists(normalizedMapperDevice) {
 		fmt.Printf("open_volume: (%s) Device already open, exiting.\n", normalizedMapperDevice)
 		os.Exit(1)
 	}
