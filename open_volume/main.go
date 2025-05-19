@@ -22,7 +22,7 @@ func main() {
 	mapperDevice := os.Args[3]
 
 	if !system.FileExists(encrypedDevice) {
-		log.Printf("open_volume: (%s) Image file not found", mapperDevice)
+		log.Printf("open_volume: (%s) Image file not found", encrypedDevice)
 		os.Exit(1)
 	}
 
