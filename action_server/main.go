@@ -26,7 +26,7 @@ type Config struct {
 	SocketPath   string `json:"socketPath"`
 }
 
-type AccessRequest struct {
+type ActionRequest struct {
 	User   string `json:"user"`
 	Action string `json:"action"`
 }
@@ -34,7 +34,7 @@ type AccessRequest struct {
 type Session struct {
 	duoState    string
 	duoUsername string
-	request     AccessRequest
+	request     ActionRequest
 }
 
 var currentSessions map[string]Session
@@ -67,7 +67,7 @@ func main() {
 	currentSessions = make(map[string]Session)
 	socketPath = config.SocketPath
 
-	http.HandleFunc("/access", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/action", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
 			return
@@ -78,7 +78,7 @@ func main() {
 			return
 		}
 
-		var req AccessRequest
+		var req ActionRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.User == "" {
 			http.Error(w, "Invalid request", http.StatusBadRequest)
 			return
@@ -168,7 +168,7 @@ func main() {
 
 // Renders HTML page with message
 
-func doAction(w http.ResponseWriter, r *http.Request, req AccessRequest) {
+func doAction(w http.ResponseWriter, r *http.Request, req ActionRequest) {
 
 	conn, err := net.Dial("unix", socketPath)
 	if err != nil {
