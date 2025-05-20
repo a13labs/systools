@@ -3,56 +3,172 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"os"
 
-	duoapi "github.com/duosecurity/duo_api_golang"
-	"github.com/duosecurity/duo_api_golang/authapi"
+	"github.com/duosecurity/duo_universal_golang/duouniversal"
 )
 
-type KnockRequest struct {
-	IP string `json:"ip"`
+const duoUnavailable = "Duo unavailable"
+const defaultConfig = "config.json"
+
+type Config struct {
+	ClientId     string `json:"clientId"`
+	ClientSecret string `json:"clientSecret"`
+	ApiHost      string `json:"apiHost"`
+	RedirectUri  string `json:"redirectUri"`
+	Failmode     string `json:"failmode"`
+	AccessToken  string `json:"accessToken"`
+	SocketPath   string `json:"socketPath"`
 }
 
-var secretToken string
+type AccessRequest struct {
+	User   string `json:"user"`
+	Action string `json:"action"`
+}
+
+type Session struct {
+	duoState    string
+	duoUsername string
+	request     AccessRequest
+}
+
+var currentSessions map[string]Session
 var socketPath = "/var/run/ssh_locker.sock"
 
 func main() {
-	secretToken = os.Getenv("KNOCK_SECRET")
-	socket := os.Getenv("SSH_LOCKER_SOCKET")
-	if socket != "" {
-		socketPath = socket
+
+	var configFile string
+
+	flag.StringVar(&configFile, "c", defaultConfig, "Path to the config file")
+	flag.Parse()
+
+	file, err := os.Open(configFile)
+	config := Config{}
+	if err != nil {
+		log.Fatal("can't open config file: ", err)
+	}
+	defer file.Close()
+	decoder := json.NewDecoder(file)
+	err = decoder.Decode(&config)
+	if err != nil {
+		log.Fatal("can't decode config JSON: ", err)
+	}
+	// Step 1: Create a Duo client
+	duoClient, err := duouniversal.NewClient(config.ClientId, config.ClientSecret, config.ApiHost, config.RedirectUri)
+	if err != nil {
+		log.Fatal("Error parsing config: ", err)
 	}
 
-	http.HandleFunc("/knock", knockHandler)
-	log.Println("Starting knock server on :8080")
+	currentSessions = make(map[string]Session)
+	socketPath = config.SocketPath
+
+	http.HandleFunc("/access", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		if r.Header.Get("X-Auth-Token") != config.AccessToken {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		var req AccessRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.User == "" {
+			http.Error(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+
+		session := Session{}
+		session.duoUsername = req.User
+		session.request = req
+
+		if req.Action != "lock" && req.Action != "unlock" {
+			http.Error(w, "Invalid action", http.StatusBadRequest)
+			return
+		}
+
+		// Step 2: Call the healthCheck to make sure Duo is accessable
+		_, err := duoClient.HealthCheck()
+
+		// Step 3: If Duo is not available to authenticate then either allow user
+		// to bypass Duo (failopen) or prevent user from authenticating (failclosed)
+		if err != nil {
+			log.Println("Duo unavailable, fail closed")
+			http.Error(w, duoUnavailable, http.StatusInternalServerError)
+			return
+		}
+
+		// Step 4: Generate and save a state variable
+		session.duoState, err = duoClient.GenerateState()
+		if err != nil {
+			log.Fatal("Error generating state: ", err)
+		}
+
+		// Step 5: Create a URL to redirect to inorder to reach the Duo prompt
+		redirectToDuoUrl, err := duoClient.CreateAuthURL(session.duoUsername, session.duoState)
+		if err != nil {
+			log.Fatal("Error creating the auth URL: ", err)
+		}
+
+		// Save the session in a map or database
+		currentSessions[session.duoState] = session
+
+		// Step 6: Redirect to that prompt
+		http.Redirect(w, r, redirectToDuoUrl, 302)
+	})
+
+	http.HandleFunc("/duo-callback", func(w http.ResponseWriter, r *http.Request) {
+		// Step 7: Grab the state and duo_code variables from the URL parameters
+		urlState := r.URL.Query().Get("state")
+		duoCode := r.URL.Query().Get("duo_code")
+
+		// Step 8: Verify that the state in the URL matches the state saved previously
+		session, ok := currentSessions[urlState]
+		if !ok {
+			log.Println("Session not found")
+			http.Error(w, "Session not found", http.StatusBadRequest)
+			return
+		}
+
+		// remove the session from the map
+		delete(currentSessions, urlState)
+
+		if urlState != session.duoState {
+			log.Println("State mismatch")
+			http.Error(w, "State mismatch", http.StatusBadRequest)
+			return
+		}
+
+		// Step 9: Exchange the duoCode from the URL parameters and the username of the user trying to authenticate
+		// for an authentication token containing information about the auth
+		authToken, err := duoClient.ExchangeAuthorizationCodeFor2faResult(duoCode, session.duoUsername)
+		if err != nil {
+			log.Fatal("Error exchanging authToken: ", err)
+		}
+		// Step 10: Check if the authentication was successful
+		if authToken.AuthResult.Status != "allow" {
+			log.Println("Authentication failed")
+			http.Error(w, "Authentication failed", http.StatusUnauthorized)
+			return
+		}
+
+		// Step 11: If the authentication was successful, then perform the action
+		doAction(w, r, session.request)
+	})
+
+	fmt.Println("Running demo on http://localhost:8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
-func knockHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Only POST allowed", http.StatusMethodNotAllowed)
-		return
-	}
+// Renders HTML page with message
 
-	if r.Header.Get("X-Auth-Token") != secretToken {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	var req KnockRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.IP == "" {
-		http.Error(w, "Invalid request", http.StatusBadRequest)
-		return
-	}
-
-	if !duoAuth(req.IP) {
-		http.Error(w, "Duo auth failed", http.StatusUnauthorized)
-		return
-	}
+func doAction(w http.ResponseWriter, r *http.Request, req AccessRequest) {
 
 	conn, err := net.Dial("unix", socketPath)
 	if err != nil {
@@ -61,7 +177,19 @@ func knockHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	_, err = fmt.Fprintf(conn, "%s\n", "unlock")
+	ip := r.RemoteAddr
+	if ip == "" {
+		ip = r.Header.Get("X-Forwarded-For")
+		if ip == "" {
+			ip = r.Header.Get("X-Real-IP")
+		}
+	}
+	if ip == "" {
+		http.Error(w, "IP not found", http.StatusBadRequest)
+		return
+	}
+
+	_, err = fmt.Fprintf(conn, "%s\n", req.Action)
 	if err != nil {
 		http.Error(w, "Write error", http.StatusInternalServerError)
 		return
@@ -74,20 +202,7 @@ func knockHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	fmt.Print(resp)
 
-	w.Write([]byte(`{"status":"ok","ip":"` + req.IP + `"}`))
-}
-
-func duoAuth(ip string) bool {
-	ikey := os.Getenv("DUO_IKEY")
-	skey := os.Getenv("DUO_SKEY")
-	host := os.Getenv("DUO_HOST")
-	user := os.Getenv("DUO_USER")
-
-	duo := authapi.NewAuthApi(*duoapi.NewDuoApi(ikey, skey, host, "ssh_locker"))
-	result, err := duo.Auth("auto", authapi.AuthUserId(user), authapi.AuthIpAddr(ip))
-	if err != nil || result.Response.Status != "allow" {
-		log.Printf("Duo auth failed: %v, %v", result.Response.Status_Msg, err)
-		return false
-	}
-	return true
+	w.Write([]byte(`{"status":"ok","message":"` + req.Action + ` successful"}`))
+	w.WriteHeader(http.StatusOK)
+	log.Printf("Action %s for user %s from IP %s", req.Action, req.User, ip)
 }
