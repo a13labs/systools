@@ -21,9 +21,9 @@ type Config struct {
 	ClientSecret string `json:"clientSecret"`
 	ApiHost      string `json:"apiHost"`
 	RedirectUri  string `json:"redirectUri"`
-	Failmode     string `json:"failmode"`
 	AccessToken  string `json:"accessToken"`
-	SocketPath   string `json:"socketPath"`
+	SocketPath   string `json:"socketPath,omitempty"`
+	Port         string `json:"port,omitempty"`
 }
 
 type ActionRequest struct {
@@ -65,7 +65,12 @@ func main() {
 	}
 
 	currentSessions = make(map[string]Session)
-	socketPath = config.SocketPath
+	if config.SocketPath != "" {
+		socketPath = config.SocketPath
+	}
+	if config.Port == "" {
+		config.Port = "8080"
+	}
 
 	http.HandleFunc("/action", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -120,7 +125,7 @@ func main() {
 		currentSessions[session.duoState] = session
 
 		// Step 6: Redirect to that prompt
-		http.Redirect(w, r, redirectToDuoUrl, 302)
+		http.Redirect(w, r, redirectToDuoUrl, http.StatusFound)
 	})
 
 	http.HandleFunc("/duo-callback", func(w http.ResponseWriter, r *http.Request) {
@@ -162,8 +167,9 @@ func main() {
 		doAction(w, r, session.request)
 	})
 
-	fmt.Println("Running demo on http://localhost:8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	fmt.Printf("Running on port %s\n", config.Port)
+	fmt.Printf("Listening on %s\n", socketPath)
+	log.Fatal(http.ListenAndServe(":"+config.Port, nil))
 }
 
 // Renders HTML page with message
