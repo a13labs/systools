@@ -24,6 +24,8 @@ type Config struct {
 	AccessToken  string `json:"accessToken"`
 	SocketPath   string `json:"socketPath,omitempty"`
 	Port         string `json:"port,omitempty"`
+	TLS_Cert     string `json:"tlsCert,omitempty"`
+	TLS_Key      string `json:"tlsKey,omitempty"`
 }
 
 type ActionRequest struct {
@@ -68,8 +70,10 @@ func main() {
 	if config.SocketPath != "" {
 		socketPath = config.SocketPath
 	}
-	if config.Port == "" {
+	if config.Port == "" && config.TLS_Cert == "" && config.TLS_Key == "" {
 		config.Port = "8080"
+	} else if config.Port == "" {
+		config.Port = "8443"
 	}
 
 	http.HandleFunc("/action", func(w http.ResponseWriter, r *http.Request) {
@@ -167,9 +171,14 @@ func main() {
 		doAction(w, r, session.request)
 	})
 
-	fmt.Printf("Running on port %s\n", config.Port)
-	fmt.Printf("Listening on %s\n", socketPath)
-	log.Fatal(http.ListenAndServe(":"+config.Port, nil))
+	fmt.Printf("Dispatching actions on socket %s\n", socketPath)
+	if config.TLS_Cert != "" && config.TLS_Key != "" {
+		log.Printf("Listening on port %s with TLS\n", config.Port)
+		log.Fatal(http.ListenAndServeTLS(":"+config.Port, config.TLS_Cert, config.TLS_Key, nil))
+	} else {
+		log.Printf("Listening on port %s without TLS\n", config.Port)
+		log.Fatal(http.ListenAndServe(":"+config.Port, nil))
+	}
 }
 
 // Renders HTML page with message
