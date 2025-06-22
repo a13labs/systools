@@ -9,9 +9,14 @@ RUN go build -o wol_proxy main.go
 
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates && update-ca-certificates
-RUN mkdir -p /app 
+# Create a non-root user
+RUN addgroup -S worker && adduser -S worker -G worker
+# Set the user to the non-root user
+RUN mkdir -p /app && chown -R worker:worker /app
+USER worker
 # Set the working directory
 WORKDIR /app
 # Copy the binary from the builder stage
 COPY --from=builder /app/wol_proxy /app/wol_proxy
 CMD ["/app/wol_proxy"]
+EXPOSE 5000
