@@ -10,7 +10,8 @@ PROJECTS = k8s_encryption_provider \
 		   k8s_gitea_shell \
 		   ssh_locker \
 		   ssh_locker_cli \
-		   ssh_locker_web 
+		   ssh_locker_web \
+		   wol_proxy 
 
 .PHONY: all build
 
