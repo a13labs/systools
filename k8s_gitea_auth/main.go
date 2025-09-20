@@ -12,8 +12,23 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Usage: %s <namespace> <pod-prefix> [<extra args>...]\n", os.Args[0])
 		os.Exit(1)
 	}
-	namespace := os.Args[1]
-	prefix := os.Args[2]
+	rootless := false
+	args := os.Args[1:]
+	// Check for -r flag
+	filteredArgs := []string{}
+	for _, arg := range args {
+		if arg == "-r" {
+			rootless = true
+		} else {
+			filteredArgs = append(filteredArgs, arg)
+		}
+	}
+	if len(filteredArgs) < 2 {
+		fmt.Fprintf(os.Stderr, "Usage: %s <namespace> <pod-prefix> [-r] [<extra args>...]\n", os.Args[0])
+		os.Exit(1)
+	}
+	namespace := filteredArgs[0]
+	prefix := filteredArgs[1]
 
 	config, err := k8sutil.GetKubeConfig()
 	if err != nil {
@@ -33,14 +48,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	cmd := []string{
-		"su", "-s", "/bin/bash", "git", "--",
-		"/usr/local/bin/gitea", "keys", "-c", "/data/gitea/conf/app.ini", "-e", "git",
+	cmd := make([]string, 0, 5)
+	if !rootless {
+		cmd = append(cmd, "su", "-s", "/bin/bash", "git", "--")
 	}
+	cmd = append(cmd, "/usr/local/bin/gitea", "keys", "-c", "/data/gitea/conf/app.ini", "-e", "git")
 
-	// Append any extra arguments passed to this program
-	if len(os.Args) > 3 {
-		cmd = append(cmd, os.Args[3:]...)
+	// Append any extra arguments passed to this program (excluding -r)
+	if len(filteredArgs) > 2 {
+		cmd = append(cmd, filteredArgs[2:]...)
 	}
 
 	err = k8sutil.ExecCommand(clientset, config, namespace, podName, cmd)
