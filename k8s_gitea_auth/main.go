@@ -51,8 +51,10 @@ func main() {
 	cmd := make([]string, 0, 5)
 	if !rootless {
 		cmd = append(cmd, "su", "-s", "/bin/bash", "git", "--")
+		cmd = append(cmd, "/usr/local/bin/gitea", "keys", "-c", "/data/gitea/conf/app.ini", "-e", "git")
+	} else {
+		cmd = append(cmd, "/usr/local/bin/gitea", "keys", "-c", "/etc/gitea/app.ini", "-e", "git")
 	}
-	cmd = append(cmd, "/usr/local/bin/gitea", "keys", "-c", "/data/gitea/conf/app.ini", "-e", "git")
 
 	// Append any extra arguments passed to this program (excluding -r)
 	if len(filteredArgs) > 2 {
