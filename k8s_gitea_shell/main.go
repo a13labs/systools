@@ -54,7 +54,7 @@ func main() {
 	if !rootless {
 		cmd = append(cmd, "su", "-s", "/bin/bash", "git", "--")
 	} else {
-		cmd = append(cmd, "/bin/bash", "--")
+		cmd = append(cmd, "/bin/sh")
 	}
 
 	// Append any extra arguments passed to this program (excluding -r)
